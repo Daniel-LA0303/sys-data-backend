@@ -48,15 +48,13 @@ func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.service.Login(r.Context(), input)
+	authResponse, err := h.service.Login(r.Context(), input)
 	if err != nil {
 		response.Error(w, err)
 		return
 	}
 
-	response.Success(w, user_dto.AuthResponseDTO{
-		Token: token,
-	}, "Login successful")
+	response.Success(w, authResponse, "Login successful")
 }
 
 func (h *UserHandler) GetUserByEmailHandler(w http.ResponseWriter, r *http.Request) {

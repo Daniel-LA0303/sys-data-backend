@@ -47,6 +47,39 @@ func (r *Repository) GetByEmail(ctx context.Context, email string) (*user_dto.Us
 	var user user_dto.UserResponseDTO
 	err := r.db.GetContext(ctx, &user, query, email)
 	if err != nil {
+		log.Printf("get emial ERROR: %v\n", err)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (r *Repository) GetInfoUserLoginAuth(ctx context.Context, email string) (*user_dto.AuthResponseDTO, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	query := `
+	SELECT 
+		ut.user_id,
+		ut.email,
+		ut.username,
+		oct.org_id,
+		oct.org_name
+	FROM users_tbl ut
+	INNER JOIN organization_core_tbl oct 
+		ON oct.owner_user_id = ut.user_id
+	WHERE ut.email = $1
+	`
+
+	var user user_dto.AuthResponseDTO
+	err := r.db.GetContext(ctx, &user, query, email)
+	if err != nil {
+		log.Printf("get email auth ERROR: %v\n", err)
+	}
+	if err != nil {
+
 		return nil, err
 	}
 

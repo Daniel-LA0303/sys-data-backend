@@ -3,6 +3,9 @@ package main
 import (
 	"core/project/core/api"
 	dbpost "core/project/core/db"
+	organization_hanlders "core/project/core/internal/organization/hanlders"
+	organization_repository "core/project/core/internal/organization/repositories"
+	organization_service "core/project/core/internal/organization/services"
 	user_handler "core/project/core/internal/users/handlers"
 	user_repository "core/project/core/internal/users/repositories"
 	user_service "core/project/core/internal/users/services"
@@ -42,11 +45,19 @@ func main() {
 	userRepo := user_repository.NewRepository(conn)
 	userServ := user_service.NewService(userRepo)
 	userHandler := user_handler.NewUserHandler(userServ)
+
+	orgRepo := organization_repository.NewRepository(conn)
+	orgServ := organization_service.NewService(orgRepo)
+	orgHandler := organization_hanlders.NewOrgHandler(orgServ)
 	// El handler ahora se inyecta en el servidor o se usa en RegisterRoutes
 
 	// 3. Arrancar el Servidor API
 	// Le pasamos el servicio porque el APIServer se encargará de pasarlo a los handlers
-	server := api.NewApiServer(":8081", userHandler)
+	server := api.NewApiServer(
+		":8081",
+		userHandler,
+		orgHandler,
+	)
 
 	if err := server.Run(); err != nil {
 		log.Fatal("Error starting the server:", err)

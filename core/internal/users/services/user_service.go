@@ -62,31 +62,44 @@ func (s *Service) RegisterUser(ctx context.Context, input user_dto.CreateUserDTO
 	return token, nil
 }
 
-func (s *Service) Login(ctx context.Context, input user_dto.LoginDTO) (string, error) {
+func (s *Service) Login(ctx context.Context, input user_dto.LoginDTO) (*user_dto.AuthResponseDTO, error) {
 
+	// 1. validate email and password
 	if input.Email == "" || input.Password == "" {
-		return "", errors.NewValidationError("Email and password are required")
+		return nil, errors.NewValidationError("Email and password are required")
 	}
 
+	// 2. get auth credentials
 	userID, hashedPassword, err := s.repo.GetAuthByEmail(ctx, input.Email)
 	if err == sql.ErrNoRows {
-		return "", errors.NewUnauthorizedError("Invalid credentials")
+		return nil, errors.NewUnauthorizedError("Email not found")
 	}
 	if err != nil {
-		return "", errors.NewDatabaseError(err)
+		return nil, errors.NewDatabaseError(err)
 	}
 
+	// 3. validate password
 	err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(input.Password))
 	if err != nil {
-		return "", errors.NewUnauthorizedError("Invalid credentials")
+		return nil, errors.NewUnauthorizedError("Invalid password")
 	}
 
+	// 4. create token
 	token, err := auth.CreateJWT(userID)
 	if err != nil {
-		return "", err
+		return nil, errors.NewInternalError(err)
 	}
 
-	return token, nil
+	// 5. get full user info (org, username, etc.)
+	userInfo, err := s.repo.GetInfoUserLoginAuth(ctx, input.Email)
+	if err != nil {
+		return nil, errors.NewDatabaseError(err)
+	}
+
+	// 6. attach token
+	userInfo.Token = token
+
+	return userInfo, nil
 }
 
 func (s *Service) GetUserByEmail(ctx context.Context, email string) (*user_dto.UserResponseDTO, error) {

@@ -23,7 +23,12 @@ type LoginDTO struct {
 }
 
 type AuthResponseDTO struct {
-	Token string `json:"token"`
+	Token    string `json:"token"`
+	UserId   string `json:"userId" db:"user_id"`
+	Email    string `json:"email" db:"email"`
+	Username string `json:"username" db:"username"`
+	OrgId    string `json:"orgId" db:"org_id"`
+	OrgName  string `json:"orgName" db:"org_name"`
 }
 
 type UpdateUserCustomSettingsDTO struct {
