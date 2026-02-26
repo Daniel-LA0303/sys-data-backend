@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	stdErrors "errors"
 	"log"
+	"strings"
 )
 
 type Service struct {
@@ -49,34 +50,6 @@ func (s *Service) GetOrganizationSmallInfo(
 	}
 
 	return org, nil
-}
-
-func (s *Service) NewOrganization(
-	ctx context.Context,
-	o organization_dto.OrganizationInfoSmallDTO,
-) error {
-
-	userID := auth.GetUserIDFromContext(ctx)
-
-	// 1. validation user
-	if userID == "" {
-		return errors.NewUnauthorizedError("Unauthorized")
-	}
-
-	// 1. validations
-	if o.OrgName == "" {
-		return errors.NewValidationError("OrgName is required")
-	}
-	if o.OwnerUserId == "" {
-		return errors.NewValidationError("OwnerUserId is required")
-	}
-
-	// 2. create organization
-	if err := s.repo.CreateOrganization(ctx, o); err != nil {
-		return errors.NewDatabaseError(err)
-	}
-
-	return nil
 }
 
 func (s *Service) UpdateOrganizationInfo(
@@ -175,4 +148,10 @@ func (s *Service) NewDepartment(
 	}
 
 	return nil
+}
+
+func generateSlug(name string) string {
+	slug := strings.ToLower(name)
+	slug = strings.ReplaceAll(slug, " ", "-")
+	return slug
 }

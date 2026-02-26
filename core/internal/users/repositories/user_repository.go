@@ -2,6 +2,7 @@ package user_repository
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"time"
 
@@ -20,8 +21,14 @@ func NewRepository(db *sqlx.DB) *Repository {
 	return &Repository{db: db}
 }
 
+type DBTX interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
+	// agrega QueryContext si lo necesitas
+}
+
 // Fíjate en el prefijo: user_dto.NombreDelStruct
-func (r *Repository) Create(ctx context.Context, u user_dto.CreateUserDTO) error {
+func (r *Repository) Create(ctx context.Context, db DBTX, u user_dto.CreateUserDTO) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -30,36 +37,36 @@ func (r *Repository) Create(ctx context.Context, u user_dto.CreateUserDTO) error
 		return err
 	}
 
-	query := `
-		INSERT INTO users_tbl (username, email, password, created_at, updated_at)
-		VALUES ($1,$2,$3,NOW(),NOW())
-	`
-	_, err = r.db.ExecContext(ctx, query, u.Username, u.Email, string(hashedPassword))
+	query := `INSERT INTO users_tbl (username, email, password, created_at, updated_at) VALUES ($1,$2,$3,NOW(),NOW())`
+	_, err = db.ExecContext(ctx, query, u.Username, u.Email, string(hashedPassword)) // db no r.db
 	return err
 }
 
-func (r *Repository) GetByEmail(ctx context.Context, email string) (*user_dto.UserResponseDTO, error) {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
+// user_repository.go
+
+func (r *Repository) GetByEmail(ctx context.Context, db DBTX, email string) (*user_dto.UserResponseDTO, error) {
+	// Si db es nil (consulta simple), usamos r.db. Si viene de RegisterUser, será 'tx'.
+	executor := db
+	if executor == nil {
+		executor = r.db
+	}
 
 	query := `SELECT user_id, username, email, created_at FROM users_tbl WHERE email = $1`
 
 	var user user_dto.UserResponseDTO
-	err := r.db.GetContext(ctx, &user, query, email)
-	if err != nil {
-		log.Printf("get emial ERROR: %v\n", err)
-	}
+	// sqlx mapeará "user_id" de la DB al campo con tag db:"user_id"
+	err := executor.GetContext(ctx, &user, query, email)
 	if err != nil {
 		return nil, err
 	}
 
 	return &user, nil
 }
-
 func (r *Repository) GetInfoUserLoginAuth(ctx context.Context, email string) (*user_dto.AuthResponseDTO, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
+	// we get info of user and organization
 	query := `
 	SELECT 
 		ut.user_id,
@@ -99,6 +106,45 @@ func (r *Repository) GetByUsername(ctx context.Context, username string) (*user_
 	}
 
 	return &user, nil
+}
+
+func (r *Repository) GetInfoRoleByName(ctx context.Context, rolename string) (*user_dto.RoleSmallRegisterInfo, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	query := `SELECT role_id, role_name FROM user_roles_core_tbl WHERE role_name = $1`
+
+	var role user_dto.RoleSmallRegisterInfo
+	err := r.db.GetContext(ctx, &role, query, rolename)
+	if err != nil {
+		return nil, err
+	}
+
+	return &role, nil
+}
+
+func (r *Repository) AssignRole(
+	ctx context.Context,
+	roleId string,
+	userId string,
+	orgId string,
+) error {
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	query := `
+		INSERT INTO user_role_assignment_tbl 
+			(user_id, role_id, org_id, assigned_at) 
+		VALUES ($1, $2, $3, NOW())
+	`
+
+	_, err := r.db.ExecContext(ctx, query, userId, roleId, orgId)
+	if err != nil {
+		log.Printf("ERROR in user_role_assignment_tbl to insert info: %v\n", err)
+	}
+
+	return nil
 }
 
 func (r *Repository) GetById(ctx context.Context, id string) (*user_dto.UserResponseDTO, error) {

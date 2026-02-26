@@ -3,6 +3,7 @@ package organization_repository
 import (
 	"context"
 	organization_dto "core/project/core/internal/organization/dtos"
+	"database/sql"
 	"log"
 	"time"
 
@@ -11,6 +12,13 @@ import (
 
 type Repository struct {
 	db *sqlx.DB
+}
+
+type DBTX interface {
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
+	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
+	SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error // Para listas
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row              // Para RETURNING
 }
 
 func NewRepository(db *sqlx.DB) *Repository {
@@ -48,35 +56,26 @@ func (r *Repository) GetOrganizationById(
 	return &settings, nil
 }
 
-func (r *Repository) CreateOrganization(
-	ctx context.Context,
-	o organization_dto.OrganizationInfoSmallDTO,
-) error {
-
+func (r *Repository) CreateOrganization(ctx context.Context, db DBTX, o organization_dto.OrganizationInfoSmallDTO) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	query := `
-	INSERT INTO organization_core_tbl
-	(
-		org_name,
-		owner_user_id
-	)
-	VALUES ($1, $2)
-`
+        INSERT INTO organization_core_tbl (org_name, org_slug, owner_user_id, plan_id, status)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING org_id
+    `
 
-	_, err := r.db.ExecContext(
-		ctx,
-		query,
-		o.OrgName,
-		o.OwnerUserId,
-	)
+	var orgID string
+	// Usamos QueryRowContext para obtener el valor del RETURNING
+	err := db.QueryRowContext(ctx, query, o.OrgName, o.OrgSlug, o.OwnerUserId, o.PlanId, o.Status).Scan(&orgID)
 
 	if err != nil {
-		log.Printf("INSERT ERROR: %v\n", err)
+		log.Printf("INSERT ORG ERROR: %v\n", err)
+		return "", err
 	}
 
-	return err
+	return orgID, nil
 }
 
 func (r *Repository) GetOrganizationFullInfoById(

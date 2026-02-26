@@ -60,10 +60,13 @@ func WithJWTAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func CreateJWT(userID string) (string, error) {
+func CreateJWT(userID string, orgId string, roleName string, email string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"userID": userID,
-		"exp":    time.Now().Add(JWTExpiration).Unix(),
+		"userID":   userID,
+		"orgId":    orgId,
+		"roleName": roleName,
+		"email":    email,
+		"exp":      time.Now().Add(JWTExpiration).Unix(),
 	})
 
 	tokenString, err := token.SignedString(JWTSecret)

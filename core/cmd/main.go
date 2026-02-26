@@ -42,17 +42,16 @@ func main() {
 	}
 
 	// 2. Inicialización de la cadena de dependencias
-	userRepo := user_repository.NewRepository(conn)
-	userServ := user_service.NewService(userRepo)
-	userHandler := user_handler.NewUserHandler(userServ)
 
 	orgRepo := organization_repository.NewRepository(conn)
-	orgServ := organization_service.NewService(orgRepo)
-	orgHandler := organization_hanlders.NewOrgHandler(orgServ)
-	// El handler ahora se inyecta en el servidor o se usa en RegisterRoutes
+	userRepo := user_repository.NewRepository(conn)
 
-	// 3. Arrancar el Servidor API
-	// Le pasamos el servicio porque el APIServer se encargará de pasarlo a los handlers
+	userServ := user_service.NewService(userRepo, orgRepo, conn)
+	orgServ := organization_service.NewService(orgRepo)
+
+	orgHandler := organization_hanlders.NewOrgHandler(orgServ)
+	userHandler := user_handler.NewUserHandler(userServ)
+
 	server := api.NewApiServer(
 		":8081",
 		userHandler,

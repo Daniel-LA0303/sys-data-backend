@@ -29,6 +29,7 @@ type AuthResponseDTO struct {
 	Username string `json:"username" db:"username"`
 	OrgId    string `json:"orgId" db:"org_id"`
 	OrgName  string `json:"orgName" db:"org_name"`
+	RoleName string `json:"roleName" db:"role_name"`
 }
 
 type UpdateUserCustomSettingsDTO struct {
@@ -41,4 +42,9 @@ type UpdateUserCustomSettingsDTO struct {
 	Language         string `json:"language" db:"language"`
 	ThemePreference  string `json:"themePreference" db:"theme_preference"`
 	ProfileCompleted bool   `json:"profileCompleted" db:"profile_completed"`
+}
+
+type RoleSmallRegisterInfo struct {
+	RoleId   string `json:"roleId" db:"role_id"`
+	RoleName string `json:"roleName" db:"role_name"`
 }

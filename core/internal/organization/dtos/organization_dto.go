@@ -1,12 +1,14 @@
 package organization_dto
 
 type OrganizationInfoSmallDTO struct {
-	OrgId       string `json:"orgId" db:"org_id"`
-	OrgName     string `json:"orgName" db:"org_name"`
-	OwnerUserId string `json:"ownerUserId" db:"owner_user_id"`
-	Status      bool   `json:"status" db:"status"`
-	CreatedAt   string `json:"createdAt" db:"created_at"`
-	UpdatedAt   string `json:"updatedAt" db:"updated_at"`
+	OrgId       string  `json:"orgId" db:"org_id"`
+	OrgName     string  `json:"orgName" db:"org_name"`
+	OwnerUserId string  `json:"ownerUserId" db:"owner_user_id"`
+	PlanId      *string `json:"planId,omitempty" db:"plan_id"`
+	OrgSlug     string  `json:"orgSlug" db:"org_slug"`
+	Status      bool    `json:"status" db:"status"`
+	CreatedAt   string  `json:"createdAt" db:"created_at"`
+	UpdatedAt   string  `json:"updatedAt" db:"updated_at"`
 }
 
 type OrganizationFullInfoDTO struct {

@@ -34,7 +34,7 @@ func (h *OrgHandler) GetOrgHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (h *OrgHandler) NewOrgHandler(w http.ResponseWriter, r *http.Request) {
+/*func (h *OrgHandler) NewOrgHandler(w http.ResponseWriter, r *http.Request) {
 
 	var input organization_dto.OrganizationInfoSmallDTO
 
@@ -49,7 +49,7 @@ func (h *OrgHandler) NewOrgHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, nil, "Organization created successfully")
-}
+}*/
 
 func (h *OrgHandler) UpdateOrganizationInfo(w http.ResponseWriter, r *http.Request) {
 
@@ -100,7 +100,7 @@ func (h *OrgHandler) NewDepartment(w http.ResponseWriter, r *http.Request) {
 
 func RegisterOrgRoutes(r *mux.Router, handler *OrgHandler) {
 	r.HandleFunc("/org/get-org-by-id", auth.WithJWTAuth(handler.GetOrgHandler)).Methods("GET")
-	r.HandleFunc("/org/new-org", auth.WithJWTAuth(handler.NewOrgHandler)).Methods("POST")
+	//r.HandleFunc("/org/new-org", auth.WithJWTAuth(handler.NewOrgHandler)).Methods("POST")
 	r.HandleFunc("/org/update-org", handler.UpdateOrganizationInfo).Methods("PUT")
 	r.HandleFunc("/org/get-department-by-id", handler.GetDepartmentInfo).Methods("GET")
 	r.HandleFunc("/org/new-department", handler.NewDepartment).Methods("POST")
