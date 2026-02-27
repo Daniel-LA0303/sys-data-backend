@@ -1,6 +1,7 @@
 package api
 
 import (
+	chat_handlers "core/project/core/internal/chat-organization/handlers"
 	organization_hanlders "core/project/core/internal/organization/hanlders"
 	users_handler "core/project/core/internal/users/handlers"
 	"log"
@@ -14,17 +15,20 @@ type APIServer struct {
 	addr        string
 	userHandler *users_handler.UserHandler
 	orgHandler  *organization_hanlders.OrgHandler
+	chatHandler *chat_handlers.ChatHandler
 }
 
 func NewApiServer(
 	addr string,
 	userHandler *users_handler.UserHandler,
 	orgHandler *organization_hanlders.OrgHandler,
+	chatHandler *chat_handlers.ChatHandler,
 ) *APIServer {
 	return &APIServer{
 		addr:        addr,
 		userHandler: userHandler,
 		orgHandler:  orgHandler,
+		chatHandler: chatHandler,
 	}
 }
 
@@ -34,6 +38,7 @@ func (s *APIServer) Run() error {
 
 	users_handler.RegisterUserRoutes(api, s.userHandler)
 	organization_hanlders.RegisterOrgRoutes(api, s.orgHandler)
+	chat_handlers.RegisterChatRoutes(api, s.chatHandler)
 
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:3000"}, // frontend

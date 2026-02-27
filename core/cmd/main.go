@@ -3,6 +3,9 @@ package main
 import (
 	"core/project/core/api"
 	dbpost "core/project/core/db"
+	chat_handlers "core/project/core/internal/chat-organization/handlers"
+	chat_repository "core/project/core/internal/chat-organization/repositories"
+	chat_services "core/project/core/internal/chat-organization/services"
 	organization_hanlders "core/project/core/internal/organization/hanlders"
 	organization_repository "core/project/core/internal/organization/repositories"
 	organization_service "core/project/core/internal/organization/services"
@@ -45,17 +48,21 @@ func main() {
 
 	orgRepo := organization_repository.NewRepository(conn)
 	userRepo := user_repository.NewRepository(conn)
+	chatRepo := chat_repository.NewRepository(conn)
 
 	userServ := user_service.NewService(userRepo, orgRepo, conn)
 	orgServ := organization_service.NewService(orgRepo)
+	chatServ := chat_services.NewService(chatRepo)
 
 	orgHandler := organization_hanlders.NewOrgHandler(orgServ)
 	userHandler := user_handler.NewUserHandler(userServ)
+	chatHandler := chat_handlers.NewUserHandler(chatServ)
 
 	server := api.NewApiServer(
 		":8081",
 		userHandler,
 		orgHandler,
+		chatHandler,
 	)
 
 	if err := server.Run(); err != nil {
