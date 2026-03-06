@@ -17,6 +17,13 @@ type contextKey string
 
 const UserIDKey contextKey = "userID"
 
+type CustomClaims struct {
+	UserID   string `json:"userID"`
+	Username string `json:"username"`
+	OrgId    string `json:"orgId"`
+	jwt.RegisteredClaims
+}
+
 func GetUserIDFromContext(ctx context.Context) string {
 	userID, ok := ctx.Value(UserIDKey).(string)
 	if !ok {
@@ -30,42 +37,40 @@ func WithJWTAuth(next http.HandlerFunc) http.HandlerFunc {
 
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			http.Error(w, "unauthorized: missing header", http.StatusUnauthorized)
 			return
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
-		token, err := validateJWT(tokenString)
-		if err != nil || !token.Valid {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+		// 1. Ahora ValidateJWT devuelve (*CustomClaims, error)
+		claims, err := ValidateJWT(tokenString)
+		if err != nil {
+			http.Error(w, "unauthorized: "+err.Error(), http.StatusUnauthorized)
 			return
 		}
 
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+		// 2. Ya no necesitas hacer cast a jwt.MapClaims
+		// Accedemos directamente a la propiedad de la estructura
+		userID := claims.UserID
+		if userID == "" {
+			http.Error(w, "unauthorized: empty user id", http.StatusUnauthorized)
 			return
 		}
 
-		userID, ok := claims["userID"].(string)
-		if !ok || userID == "" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-
+		// 3. Inyectamos en el contexto
 		ctx := context.WithValue(r.Context(), UserIDKey, userID)
 
 		next(w, r.WithContext(ctx))
 	}
 }
-
-func CreateJWT(userID string, orgId string, roleName string, email string) (string, error) {
+func CreateJWT(userID string, orgId string, roleName string, email string, username string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userID":   userID,
 		"orgId":    orgId,
 		"roleName": roleName,
 		"email":    email,
+		"username": username,
 		"exp":      time.Now().Add(JWTExpiration).Unix(),
 	})
 
@@ -77,14 +82,19 @@ func CreateJWT(userID string, orgId string, roleName string, email string) (stri
 	return tokenString, nil
 }
 
-func validateJWT(tokenString string) (*jwt.Token, error) {
-	return jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-
-		// Validar algoritmo
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method")
-		}
-
+func ValidateJWT(tokenString string) (*CustomClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return JWTSecret, nil
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Hacemos el "type assertion" para obtener los claims
+	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
+		return claims, nil
+	}
+
+	return nil, fmt.Errorf("token no válido o claims incorrectos")
 }

@@ -103,7 +103,7 @@ func (s *Service) RegisterUser(ctx context.Context, input user_dto.CreateUserDTO
 	}
 
 	// 7. we create the JWT
-	token, err := auth.CreateJWT(user.UserID, orgID, roleInfo.RoleName, user.Email)
+	token, err := auth.CreateJWT(user.UserID, orgID, roleInfo.RoleName, user.Email, user.Username)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +152,7 @@ func (s *Service) Login(ctx context.Context, input user_dto.LoginDTO) (*user_dto
 	}
 
 	// 4. create token
-	token, err := auth.CreateJWT(userID, userInfo.OrgId, roleInfo.RoleName, userInfo.Email)
+	token, err := auth.CreateJWT(userID, userInfo.OrgId, roleInfo.RoleName, userInfo.Email, userInfo.Username)
 	if err != nil {
 		return nil, errors.NewInternalError(err)
 	}

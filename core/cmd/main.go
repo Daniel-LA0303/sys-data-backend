@@ -6,6 +6,7 @@ import (
 	chat_handlers "core/project/core/internal/chat-organization/handlers"
 	chat_repository "core/project/core/internal/chat-organization/repositories"
 	chat_services "core/project/core/internal/chat-organization/services"
+	chat_ws "core/project/core/internal/chat-ws/handlers"
 	organization_hanlders "core/project/core/internal/organization/hanlders"
 	organization_repository "core/project/core/internal/organization/repositories"
 	organization_service "core/project/core/internal/organization/services"
@@ -58,11 +59,18 @@ func main() {
 	userHandler := user_handler.NewUserHandler(userServ)
 	chatHandler := chat_handlers.NewUserHandler(chatServ)
 
+	wsHub := chat_ws.NewHub()
+	go wsHub.Run()
+
+	// WebSocket: crear handler pasándole hub + chatServ (para persistir mensajes)
+	wsHandler := chat_ws.NewWSHandler(wsHub, chatServ)
+
 	server := api.NewApiServer(
 		":8081",
 		userHandler,
 		orgHandler,
 		chatHandler,
+		wsHandler,
 	)
 
 	if err := server.Run(); err != nil {
