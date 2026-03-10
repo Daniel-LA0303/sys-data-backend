@@ -10,9 +10,7 @@ import (
 	organization_hanlders "core/project/core/internal/organization/hanlders"
 	organization_repository "core/project/core/internal/organization/repositories"
 	organization_service "core/project/core/internal/organization/services"
-	user_handler "core/project/core/internal/users/handlers"
-	user_repository "core/project/core/internal/users/repositories"
-	user_service "core/project/core/internal/users/services"
+	module_users "core/project/core/internal/users/module"
 	"fmt"
 	"log"
 	"os"
@@ -48,16 +46,21 @@ func main() {
 	// 2. Inicialización de la cadena de dependencias
 
 	orgRepo := organization_repository.NewRepository(conn)
-	userRepo := user_repository.NewRepository(conn)
+	//userRepo := user_repository.NewRepository(conn)
 	chatRepo := chat_repository.NewRepository(conn)
 
-	userServ := user_service.NewService(userRepo, orgRepo, conn)
+	//userServ := user_service.NewService(userRepo, orgRepo, conn)
 	orgServ := organization_service.NewService(orgRepo)
 	chatServ := chat_services.NewService(chatRepo)
 
 	orgHandler := organization_hanlders.NewOrgHandler(orgServ)
-	userHandler := user_handler.NewUserHandler(userServ)
+	//userHandler := user_handler.NewUserHandler(userServ)
 	chatHandler := chat_handlers.NewUserHandler(chatServ)
+
+	userModule := module_users.NewModule(
+		conn,
+		orgRepo, // <- can be orgModule.Repo if we create a module for organizations
+	)
 
 	wsHub := chat_ws.NewHub()
 	go wsHub.Run()
@@ -67,7 +70,8 @@ func main() {
 
 	server := api.NewApiServer(
 		":8081",
-		userHandler,
+		//userHandler,
+		userModule.Handler,
 		orgHandler,
 		chatHandler,
 		wsHandler,
