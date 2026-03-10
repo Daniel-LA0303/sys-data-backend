@@ -7,6 +7,7 @@ import (
 	user_dto "core/project/core/internal/users/dtos"
 	users_service "core/project/core/internal/users/services"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -56,6 +57,23 @@ func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, authResponse, "Login successful")
+}
+
+func (h *UserHandler) IniviteUserHandler(w http.ResponseWriter, r *http.Request) {
+	var input user_dto.InviteUserRequestDTO
+
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		response.Error(w, errors.NewValidationError("Invalid request body"))
+		return
+	}
+
+	log.Printf("hanlder invite")
+	err := h.service.InviteUser(r.Context(), input)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.Success(w, nil, "User invited successfully")
 }
 
 func (h *UserHandler) GetUserByEmailHandler(w http.ResponseWriter, r *http.Request) {
@@ -148,4 +166,8 @@ func RegisterUserRoutes(r *mux.Router, handler *UserHandler) {
 		auth.WithJWTAuth(handler.UpdateInfoUserCustomSettingsHandler),
 	).Methods("PUT")
 
+	r.HandleFunc(
+		"/auth/user/invite-user",
+		auth.WithJWTAuth(handler.IniviteUserHandler),
+	).Methods("POST")
 }

@@ -58,3 +58,10 @@ type RoleSmallRegisterInfo struct {
 	RoleId   string `json:"roleId" db:"role_id"`
 	RoleName string `json:"roleName" db:"role_name"`
 }
+
+type InviteUserRequestDTO struct {
+	Username string `json:"username" validate:"required,min=3,max=50"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=4"`
+	OrgId    string `json:"orgId" validate:"required"`
+}

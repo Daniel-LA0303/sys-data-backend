@@ -54,7 +54,7 @@ func (r *Repository) GetByEmail(ctx context.Context, db DBTX, email string) (*us
 
 	err := executor.GetContext(ctx, &user, query, email)
 	if err != nil {
-		return nil, err
+		log.Printf("ERROR in GetByEmail info: %v\n", err)
 	}
 
 	return &user, nil
@@ -122,6 +122,7 @@ func (r *Repository) GetInfoRoleByName(ctx context.Context, rolename string) (*u
 
 func (r *Repository) AssignRole(
 	ctx context.Context,
+	db DBTX,
 	roleId string,
 	userId string,
 	orgId string,
@@ -131,14 +132,15 @@ func (r *Repository) AssignRole(
 	defer cancel()
 
 	query := `
-		INSERT INTO user_role_assignment_tbl 
-			(user_id, role_id, org_id, assigned_at) 
-		VALUES ($1, $2, $3, NOW())
+		INSERT INTO user_role_assignment_tbl
+			(user_id, role_id, org_id, assigned_at)
+		VALUES ($1,$2,$3,NOW())
 	`
 
-	_, err := r.db.ExecContext(ctx, query, userId, roleId, orgId)
+	_, err := db.ExecContext(ctx, query, userId, roleId, orgId)
 	if err != nil {
-		log.Printf("ERROR in user_role_assignment_tbl to insert info: %v\n", err)
+		log.Printf("ERROR in user_role_assignment_tbl insert: %v\n", err)
+		return err
 	}
 
 	return nil

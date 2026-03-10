@@ -38,3 +38,9 @@ type DeparmentInfoDTO struct {
 	ManagerUserId string `json:"managerUserId" db:"manager_user_id"`
 	CreatedAt     string `json:"createdAt" db:"created_at"`
 }
+
+type InsertUserOrganizationDTO struct {
+	OrgId  string `json:"orgId" db:"org_id"`
+	UserId string `json:"userId" db:"user_id"`
+	Role   string `json:"role" db:"role"`
+}

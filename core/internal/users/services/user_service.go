@@ -101,22 +101,32 @@ func (s *Service) RegisterUser(ctx context.Context, input user_dto.CreateUserReq
 	roleInfo, err := s.repo.GetInfoRoleByName(ctx, "ROLE_ADMIN")
 
 	// 8. assign role
-	if err = s.repo.AssignRole(ctx, roleInfo.RoleId, user.UserID, orgID); err != nil {
+	if err = s.repo.AssignRole(ctx, tx, roleInfo.RoleId, user.UserID, orgID); err != nil {
 		return nil, err
 	}
 
-	// 9. commit, this is where the transaction ends
+	// 9. insert data in organization_user_tbl
+	orgUser := organization_dto.InsertUserOrganizationDTO{
+		OrgId:  orgID,
+		UserId: user.UserID,
+		Role:   roleInfo.RoleName,
+	}
+	if err = s.orgRepo.InsertUserOrganization(ctx, tx, orgUser); err != nil {
+		return nil, err
+	}
+
+	// 10. commit, this is where the transaction ends
 	if err = tx.Commit(); err != nil {
 		return nil, errors.NewDatabaseError(err)
 	}
 
-	// 10. we create the JWT
+	// 11. we create the JWT
 	token, err := auth.CreateJWT(user.UserID, orgID, roleInfo.RoleName, user.Email, user.Username)
 	if err != nil {
 		return nil, err
 	}
 
-	// 11. return response
+	// 12. return response
 	return &user_dto.CreateUserResponseDTO{
 		Token:    token,
 		UserId:   user.UserID,
@@ -128,6 +138,7 @@ func (s *Service) RegisterUser(ctx context.Context, input user_dto.CreateUserReq
 	}, nil
 }
 
+// LOGIN USER
 func (s *Service) Login(ctx context.Context, input user_dto.LoginRequestDTO) (*user_dto.LoginResponseDTO, error) {
 
 	// 1. validate email and password
@@ -171,6 +182,90 @@ func (s *Service) Login(ctx context.Context, input user_dto.LoginRequestDTO) (*u
 	userInfo.RoleName = roleInfo.RoleName
 
 	return userInfo, nil
+}
+
+// INVITE USER WITH ROLE MEMBER
+// INVITE USER WITH ROLE MEMBER
+func (s *Service) InviteUser(ctx context.Context, input user_dto.InviteUserRequestDTO) error {
+
+	// 1. validate input
+	validationErrors := validator.ValidateStruct(input)
+	if validationErrors != nil {
+		return errors.NewValidationFiledsError("Invalid input", validationErrors)
+	}
+	log.Printf("service invite validate")
+
+	// 2. validate if user with email already exists
+	existing, _ := s.repo.GetByEmail(ctx, s.db, input.Email)
+	if existing != nil && existing.UserID != "" {
+		return errors.NewConflictError("User already exists")
+	}
+
+	log.Printf("service invite get by email")
+	// 3. init transaction
+	tx, err := s.tx.BeginTxx(ctx, nil)
+	if err != nil {
+		return errors.NewDatabaseError(err)
+	}
+
+	// 3.1 defer rollback
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		} else if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	userCreated := user_dto.CreateUserRequestDTO{
+		Username: input.Username,
+		Email:    input.Email,
+		Password: input.Password,
+	}
+
+	// 4. create user
+	if err = s.repo.Create(ctx, tx, userCreated); err != nil {
+		return err
+	}
+	log.Printf("service invite create user")
+
+	// 5. get created user
+	user, err := s.repo.GetByEmail(ctx, tx, input.Email)
+	if err != nil {
+		return err
+	}
+
+	// 6. get role member
+	roleInfo, err := s.repo.GetInfoRoleByName(ctx, "ROLE_MEMBER")
+	if err != nil {
+		return err
+	}
+
+	// 7. assign role
+	if err = s.repo.AssignRole(ctx, tx, roleInfo.RoleId, user.UserID, input.OrgId); err != nil {
+		return err
+	}
+	log.Printf("service invite asign role")
+
+	// 8. insert in organization_user_tbl
+	orgUser := organization_dto.InsertUserOrganizationDTO{
+		OrgId:  input.OrgId,
+		UserId: user.UserID,
+		Role:   roleInfo.RoleName,
+	}
+
+	if err = s.orgRepo.InsertUserOrganization(ctx, tx, orgUser); err != nil {
+		return err
+	}
+	log.Printf("service invite insert in organization_user_tbl")
+
+	// 9. commit
+	if err = tx.Commit(); err != nil {
+		return errors.NewDatabaseError(err)
+	}
+
+	return nil
 }
 
 func (s *Service) GetUserByEmail(ctx context.Context, email string) (*user_dto.UserResponseDTO, error) {

@@ -56,6 +56,24 @@ func (r *Repository) GetOrganizationById(
 	return &settings, nil
 }
 
+func (r *Repository) InsertUserOrganization(ctx context.Context, db DBTX, o organization_dto.InsertUserOrganizationDTO) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	query := `
+        INSERT INTO organization_user_tbl (org_id, user_id, role)
+        VALUES ($1, $2, $3)
+    `
+
+	_, err := db.ExecContext(ctx, query, o.OrgId, o.UserId, o.Role)
+	if err != nil {
+		log.Printf("ERROR in InsertUserOrganization: %v\n", err)
+		return err
+	}
+
+	return nil
+}
+
 func (r *Repository) CreateOrganization(ctx context.Context, db DBTX, o organization_dto.OrganizationInfoSmallDTO) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
