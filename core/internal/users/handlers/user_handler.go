@@ -24,22 +24,20 @@ func NewUserHandler(service *users_service.Service) *UserHandler {
 func (h *UserHandler) RegisterUserHandler(w http.ResponseWriter, r *http.Request) {
 	var input user_dto.CreateUserDTO
 
-	// 1. Decodificar el body
+	// 1. get body
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		response.Error(w, errors.NewValidationError("Invalid request body"))
 		return
 	}
 
-	// 2. Llamar al servicio
-	// IMPORTANTE: 'authData' ahora es el objeto completo (*user_dto.AuthResponseDTO)
+	// 2. call service
 	authData, err := h.service.RegisterUser(r.Context(), input)
 	if err != nil {
 		response.Error(w, err)
 		return
 	}
 
-	// 3. Responder con el objeto que ya viene lleno desde el servicio
-	// Ya no creamos un struct aquí, usamos el que nos dio el servicio
+	// 3. build response
 	response.Success(w, authData, "User registered successfully")
 }
 

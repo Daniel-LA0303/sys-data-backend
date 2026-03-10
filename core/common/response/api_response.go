@@ -17,8 +17,9 @@ type APIResponse struct {
 }
 
 type ErrorInfo struct {
-	Type    string `json:"type"`
-	Message string `json:"message"`
+	Type    string      `json:"type"`
+	Message string      `json:"message"`
+	Fields  interface{} `json:"fields,omitempty"`
 }
 
 // Success response
@@ -48,6 +49,7 @@ func Error(w http.ResponseWriter, err error) {
 			Error: &ErrorInfo{
 				Type:    string(appErr.Type),
 				Message: appErr.Message,
+				Fields:  appErr.Fields,
 			},
 		}
 

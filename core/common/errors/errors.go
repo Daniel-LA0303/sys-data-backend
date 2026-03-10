@@ -22,7 +22,8 @@ type AppError struct {
 	Type       AppErrorType `json:"type"`
 	Message    string       `json:"message"`
 	StatusCode int          `json:"-"`
-	Err        error        `json:"-"` // Error original para logs
+	Err        error        `json:"-"`
+	Fields     interface{}  `json:"fields,omitempty"`
 }
 
 func (e *AppError) Error() string {
@@ -38,6 +39,15 @@ func NewValidationError(message string) *AppError {
 		Type:       ErrorTypeValidation,
 		Message:    message,
 		StatusCode: http.StatusBadRequest,
+	}
+}
+
+func NewValidationFiledsError(message string, fields interface{}) *AppError {
+	return &AppError{
+		Type:       ErrorTypeValidation,
+		Message:    message,
+		StatusCode: http.StatusBadRequest,
+		Fields:     fields,
 	}
 }
 

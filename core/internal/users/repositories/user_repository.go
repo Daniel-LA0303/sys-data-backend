@@ -24,10 +24,8 @@ func NewRepository(db *sqlx.DB) *Repository {
 type DBTX interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
-	// agrega QueryContext si lo necesitas
 }
 
-// Fíjate en el prefijo: user_dto.NombreDelStruct
 func (r *Repository) Create(ctx context.Context, db DBTX, u user_dto.CreateUserDTO) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -43,9 +41,8 @@ func (r *Repository) Create(ctx context.Context, db DBTX, u user_dto.CreateUserD
 }
 
 // user_repository.go
-
 func (r *Repository) GetByEmail(ctx context.Context, db DBTX, email string) (*user_dto.UserResponseDTO, error) {
-	// Si db es nil (consulta simple), usamos r.db. Si viene de RegisterUser, será 'tx'.
+
 	executor := db
 	if executor == nil {
 		executor = r.db
@@ -54,7 +51,7 @@ func (r *Repository) GetByEmail(ctx context.Context, db DBTX, email string) (*us
 	query := `SELECT user_id, username, email, created_at FROM users_tbl WHERE email = $1`
 
 	var user user_dto.UserResponseDTO
-	// sqlx mapeará "user_id" de la DB al campo con tag db:"user_id"
+
 	err := executor.GetContext(ctx, &user, query, email)
 	if err != nil {
 		return nil, err

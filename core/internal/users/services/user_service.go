@@ -3,6 +3,7 @@ package users_service
 import (
 	"context"
 	"core/project/core/common/errors"
+	"core/project/core/common/validator"
 	organization_dto "core/project/core/internal/organization/dtos"
 	organization_repository "core/project/core/internal/organization/repositories"
 	"core/project/core/internal/users/auth"
@@ -39,6 +40,12 @@ func NewService(repo *user_repository.Repository, orgRepo *organization_reposito
 
 // this function does not have validation
 func (s *Service) RegisterUser(ctx context.Context, input user_dto.CreateUserDTO) (*user_dto.AuthResponseDTO, error) {
+
+	// 1, valid input
+	validationErrors := validator.ValidateStruct(input)
+	if validationErrors != nil {
+		return nil, errors.NewValidationFiledsError("Invalid input", validationErrors)
+	}
 
 	// 1. valid if user with email already exists
 	existing, _ := s.repo.GetByEmail(ctx, s.db, input.Email)
@@ -90,9 +97,10 @@ func (s *Service) RegisterUser(ctx context.Context, input user_dto.CreateUserDTO
 		return nil, err
 	}
 
-	// 4. get info of role
+	// 4. get info of role admin
 	roleInfo, err := s.repo.GetInfoRoleByName(ctx, "ROLE_ADMIN")
 
+	// 5. assign role
 	if err = s.repo.AssignRole(ctx, roleInfo.RoleId, user.UserID, orgID); err != nil {
 		return nil, err
 	}
