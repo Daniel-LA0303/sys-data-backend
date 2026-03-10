@@ -22,7 +22,7 @@ func NewUserHandler(service *users_service.Service) *UserHandler {
 }
 
 func (h *UserHandler) RegisterUserHandler(w http.ResponseWriter, r *http.Request) {
-	var input user_dto.CreateUserDTO
+	var input user_dto.CreateUserRequestDTO
 
 	// 1. get body
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -42,7 +42,7 @@ func (h *UserHandler) RegisterUserHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (h *UserHandler) LoginHandler(w http.ResponseWriter, r *http.Request) {
-	var input user_dto.LoginDTO
+	var input user_dto.LoginRequestDTO
 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		response.Error(w, errors.NewValidationError("Invalid request body"))

@@ -26,7 +26,7 @@ type DBTX interface {
 	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
 }
 
-func (r *Repository) Create(ctx context.Context, db DBTX, u user_dto.CreateUserDTO) error {
+func (r *Repository) Create(ctx context.Context, db DBTX, u user_dto.CreateUserRequestDTO) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -59,7 +59,7 @@ func (r *Repository) GetByEmail(ctx context.Context, db DBTX, email string) (*us
 
 	return &user, nil
 }
-func (r *Repository) GetInfoUserLoginAuth(ctx context.Context, email string) (*user_dto.AuthResponseDTO, error) {
+func (r *Repository) GetInfoUserLoginAuth(ctx context.Context, email string) (*user_dto.LoginResponseDTO, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -77,10 +77,10 @@ func (r *Repository) GetInfoUserLoginAuth(ctx context.Context, email string) (*u
 	WHERE ut.email = $1
 	`
 
-	var user user_dto.AuthResponseDTO
+	var user user_dto.LoginResponseDTO
 	err := r.db.GetContext(ctx, &user, query, email)
 	if err != nil {
-		log.Printf("get email auth ERROR: %v\n", err)
+		log.Printf("ERROR in GetInfoUserLoginAuth: %v\n", err)
 	}
 	if err != nil {
 

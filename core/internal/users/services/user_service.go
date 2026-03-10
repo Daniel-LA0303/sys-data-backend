@@ -38,8 +38,8 @@ func NewService(repo *user_repository.Repository, orgRepo *organization_reposito
 	}
 }
 
-// this function does not have validation
-func (s *Service) RegisterUser(ctx context.Context, input user_dto.CreateUserDTO) (*user_dto.AuthResponseDTO, error) {
+// REGISTER USER WITH ROLE ADMIN
+func (s *Service) RegisterUser(ctx context.Context, input user_dto.CreateUserRequestDTO) (*user_dto.CreateUserResponseDTO, error) {
 
 	// 1, valid input
 	validationErrors := validator.ValidateStruct(input)
@@ -47,19 +47,19 @@ func (s *Service) RegisterUser(ctx context.Context, input user_dto.CreateUserDTO
 		return nil, errors.NewValidationFiledsError("Invalid input", validationErrors)
 	}
 
-	// 1. valid if user with email already exists
+	// 2. valid if user with email already exists
 	existing, _ := s.repo.GetByEmail(ctx, s.db, input.Email)
 	if existing != nil && existing.UserID != "" {
 		return nil, errors.NewConflictError("User already exists")
 	}
 
-	// 2. init transaction
+	// 3. init transaction
 	tx, err := s.tx.BeginTxx(ctx, nil)
 	if err != nil {
 		return nil, errors.NewDatabaseError(err)
 	}
 
-	// 2.1. defer rollback
+	// 3.1. defer rollback
 	defer func() {
 		if p := recover(); p != nil {
 			tx.Rollback()
@@ -69,21 +69,21 @@ func (s *Service) RegisterUser(ctx context.Context, input user_dto.CreateUserDTO
 		}
 	}()
 
-	// 3. create new user
+	// 4. create new user
 	if err = s.repo.Create(ctx, tx, input); err != nil {
 		return nil, err
 	}
 
-	// 4. get user that was just created
+	// 5. get user that was just created
 	user, err := s.repo.GetByEmail(ctx, tx, input.Email)
 	if err != nil {
 		return nil, err
 	}
 
-	// 5. create default org
+	// 6. create default org
 	orgSlug := "default-" + user.UserID[:6]
 
-	// 5.1 build default org
+	// 6.1 build default org
 	org := organization_dto.OrganizationInfoSmallDTO{
 		OrgName:     "default",
 		OrgSlug:     orgSlug,
@@ -91,33 +91,33 @@ func (s *Service) RegisterUser(ctx context.Context, input user_dto.CreateUserDTO
 		Status:      true,
 	}
 
-	// 5.2 create default org
+	// 6.2 create default org
 	orgID, err := s.orgRepo.CreateOrganization(ctx, tx, org)
 	if err != nil {
 		return nil, err
 	}
 
-	// 4. get info of role admin
+	// 7. get info of role admin
 	roleInfo, err := s.repo.GetInfoRoleByName(ctx, "ROLE_ADMIN")
 
-	// 5. assign role
+	// 8. assign role
 	if err = s.repo.AssignRole(ctx, roleInfo.RoleId, user.UserID, orgID); err != nil {
 		return nil, err
 	}
 
-	// 6. commit, this is where the transaction ends
+	// 9. commit, this is where the transaction ends
 	if err = tx.Commit(); err != nil {
 		return nil, errors.NewDatabaseError(err)
 	}
 
-	// 7. we create the JWT
+	// 10. we create the JWT
 	token, err := auth.CreateJWT(user.UserID, orgID, roleInfo.RoleName, user.Email, user.Username)
 	if err != nil {
 		return nil, err
 	}
 
-	// 8. return response
-	return &user_dto.AuthResponseDTO{
+	// 11. return response
+	return &user_dto.CreateUserResponseDTO{
 		Token:    token,
 		UserId:   user.UserID,
 		Email:    user.Email,
@@ -128,11 +128,12 @@ func (s *Service) RegisterUser(ctx context.Context, input user_dto.CreateUserDTO
 	}, nil
 }
 
-func (s *Service) Login(ctx context.Context, input user_dto.LoginDTO) (*user_dto.AuthResponseDTO, error) {
+func (s *Service) Login(ctx context.Context, input user_dto.LoginRequestDTO) (*user_dto.LoginResponseDTO, error) {
 
 	// 1. validate email and password
-	if input.Email == "" || input.Password == "" {
-		return nil, errors.NewValidationError("Email and password are required")
+	validationErrors := validator.ValidateStruct(input)
+	if validationErrors != nil {
+		return nil, errors.NewValidationFiledsError("Invalid input", validationErrors)
 	}
 
 	// 2. get auth credentials

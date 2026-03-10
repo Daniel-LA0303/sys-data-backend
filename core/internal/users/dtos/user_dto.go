@@ -3,7 +3,7 @@ package user_dto
 import "time"
 
 // Request DTO
-type CreateUserDTO struct {
+type CreateUserRequestDTO struct {
 	Username string `json:"username" validate:"required,min=3,max=50"`
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=4"`
@@ -17,12 +17,22 @@ type UserResponseDTO struct {
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
-type LoginDTO struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+type LoginRequestDTO struct {
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=4"`
 }
 
-type AuthResponseDTO struct {
+type LoginResponseDTO struct {
+	Token    string `json:"token"`
+	UserId   string `json:"userId" db:"user_id"`
+	Email    string `json:"email" db:"email"`
+	Username string `json:"username" db:"username"`
+	OrgId    string `json:"orgId" db:"org_id"`
+	OrgName  string `json:"orgName" db:"org_name"`
+	RoleName string `json:"roleName" db:"role_name"`
+}
+
+type CreateUserResponseDTO struct {
 	Token    string `json:"token"`
 	UserId   string `json:"userId" db:"user_id"`
 	Email    string `json:"email" db:"email"`
