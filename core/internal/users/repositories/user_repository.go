@@ -3,6 +3,7 @@ package user_repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log"
 	"time"
 
@@ -42,7 +43,6 @@ func (r *Repository) Create(ctx context.Context, db DBTX, u user_dto.CreateUserR
 
 // user_repository.go
 func (r *Repository) GetByEmail(ctx context.Context, db DBTX, email string) (*user_dto.UserResponseDTO, error) {
-
 	executor := db
 	if executor == nil {
 		executor = r.db
@@ -54,11 +54,34 @@ func (r *Repository) GetByEmail(ctx context.Context, db DBTX, email string) (*us
 
 	err := executor.GetContext(ctx, &user, query, email)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil // no existe usuario, todo bien
+		}
 		log.Printf("ERROR in GetByEmail info: %v\n", err)
+		return nil, err // error real
 	}
 
 	return &user, nil
 }
+
+func (r *Repository) GetUserByUsername(ctx context.Context, db DBTX, username string) (*user_dto.UserResponseDTO, error) {
+	executor := db
+	if executor == nil {
+		executor = r.db
+	}
+
+	var user user_dto.UserResponseDTO
+	query := `SELECT user_id, username, email, created_at FROM users_tbl WHERE username = $1`
+	err := executor.GetContext(ctx, &user, query, username)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (r *Repository) GetInfoUserLoginAuth(ctx context.Context, email string) (*user_dto.LoginResponseDTO, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -69,11 +92,12 @@ func (r *Repository) GetInfoUserLoginAuth(ctx context.Context, email string) (*u
 		ut.user_id,
 		ut.email,
 		ut.username,
-		oct.org_id,
+		out2.org_id,
 		oct.org_name
 	FROM users_tbl ut
+		inner  join organization_user_tbl out2 on out2.user_id = ut.user_id
 	INNER JOIN organization_core_tbl oct 
-		ON oct.owner_user_id = ut.user_id
+		ON oct.org_id  = out2.org_id 
 	WHERE ut.email = $1
 	`
 
@@ -182,6 +206,48 @@ func (r *Repository) GetPaginated(ctx context.Context, limit, offset int) ([]use
 	return users, nil
 }
 
+func (r *Repository) GetUsersByOrganizationPaginated(
+	ctx context.Context,
+	limit, offset int,
+	orgId string,
+) ([]user_dto.UsersByOrganizationResponseDTO, int, error) {
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var users []user_dto.UsersByOrganizationResponseDTO
+	var total int
+
+	// 1 paginated
+	query := `
+		SELECT out2.org_id, out2.user_id, out2.role, ut.username, ut.email
+		FROM organization_user_tbl out2
+		INNER JOIN users_tbl ut ON out2.user_id = ut.user_id
+		WHERE out2.org_id = $3
+		ORDER BY ut.created_at DESC
+		LIMIT $1 OFFSET $2
+	`
+
+	err := r.db.SelectContext(ctx, &users, query, limit, offset, orgId)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 2 total users
+	countQuery := `
+		SELECT COUNT(*)
+		FROM organization_user_tbl
+		WHERE org_id = $1
+	`
+
+	err = r.db.GetContext(ctx, &total, countQuery, orgId)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return users, total, nil
+}
+
 func (r *Repository) GetAuthByEmail(ctx context.Context, email string) (string, string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -232,7 +298,7 @@ func (r *Repository) CreateCustomSettings(
 	)
 
 	if err != nil {
-		log.Printf("INSERT ERROR: %v\n", err)
+		log.Printf("INSERT ERROR in CreateCustomSettings: %v\n", err)
 	}
 
 	return err

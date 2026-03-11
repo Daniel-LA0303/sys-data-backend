@@ -68,12 +68,12 @@ func (h *UserHandler) IniviteUserHandler(w http.ResponseWriter, r *http.Request)
 	}
 
 	log.Printf("hanlder invite")
-	err := h.service.InviteUser(r.Context(), input)
+	user, err := h.service.InviteUser(r.Context(), input)
 	if err != nil {
 		response.Error(w, err)
 		return
 	}
-	response.Success(w, nil, "User invited successfully")
+	response.Success(w, user, "User invited successfully")
 }
 
 func (h *UserHandler) GetUserByEmailHandler(w http.ResponseWriter, r *http.Request) {
@@ -110,6 +110,34 @@ func (h *UserHandler) GetPaginatedUsersHandler(w http.ResponseWriter, r *http.Re
 	}
 
 	json.NewEncoder(w).Encode(users)
+}
+
+func (h *UserHandler) GetPaginatedUsersByOrganizationHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+
+	orgId := query.Get("orgId")
+	page, _ := strconv.Atoi(query.Get("page"))
+	limit, _ := strconv.Atoi(query.Get("limit"))
+
+	users, total, err := h.service.GetUsersByOrganizationPaginated(
+		r.Context(),
+		page,
+		limit,
+		orgId,
+	)
+
+	if err != nil {
+		http.Error(w, "Error fetching users paginated by org", http.StatusInternalServerError)
+		return
+	}
+
+	if users == nil {
+		users = []user_dto.UsersByOrganizationResponseDTO{}
+	}
+
+	response.SuccessPaginated(w, users, page, limit, total)
 }
 
 func (h *UserHandler) UpdateInfoUserCustomSettingsHandler(w http.ResponseWriter, r *http.Request) {
@@ -154,6 +182,10 @@ func RegisterUserRoutes(r *mux.Router, handler *UserHandler) {
 
 	r.HandleFunc("/auth/me",
 		auth.WithJWTAuth(handler.GetProfileHandler),
+	).Methods("GET")
+
+	r.HandleFunc("/auth/users/users-by-org",
+		auth.WithJWTAuth(handler.GetPaginatedUsersByOrganizationHandler),
 	).Methods("GET")
 
 	r.HandleFunc(

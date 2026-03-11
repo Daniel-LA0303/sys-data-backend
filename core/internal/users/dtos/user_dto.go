@@ -17,6 +17,22 @@ type UserResponseDTO struct {
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
+type UsersByOrganizationResponseDTO struct {
+	OrgId    string `json:"orgId" db:"org_id"`
+	UserId   string `json:"userId" db:"user_id"`
+	Email    string `json:"email" db:"email"`
+	Username string `json:"username" db:"username"`
+	Role     string `json:"role" db:"role"`
+}
+
+type InviteUserResponseDTO struct {
+	OrgId    string `json:"orgId" db:"org_id"`
+	UserId   string `json:"userId" db:"user_id"`
+	Email    string `json:"email" db:"email"`
+	Username string `json:"username" db:"username"`
+	Role     string `json:"role" db:"role"`
+}
+
 type LoginRequestDTO struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=4"`
@@ -64,4 +80,5 @@ type InviteUserRequestDTO struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=4"`
 	OrgId    string `json:"orgId" validate:"required"`
+	Role     string `json:"role" validate:"required"`
 }

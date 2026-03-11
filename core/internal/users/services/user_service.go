@@ -185,27 +185,36 @@ func (s *Service) Login(ctx context.Context, input user_dto.LoginRequestDTO) (*u
 }
 
 // INVITE USER WITH ROLE MEMBER
-// INVITE USER WITH ROLE MEMBER
-func (s *Service) InviteUser(ctx context.Context, input user_dto.InviteUserRequestDTO) error {
+func (s *Service) InviteUser(ctx context.Context, input user_dto.InviteUserRequestDTO) (user_dto.InviteUserResponseDTO, error) {
 
 	// 1. validate input
 	validationErrors := validator.ValidateStruct(input)
 	if validationErrors != nil {
-		return errors.NewValidationFiledsError("Invalid input", validationErrors)
+		return user_dto.InviteUserResponseDTO{}, errors.NewValidationFiledsError("Invalid input", validationErrors)
 	}
-	log.Printf("service invite validate")
 
 	// 2. validate if user with email already exists
 	existing, _ := s.repo.GetByEmail(ctx, s.db, input.Email)
 	if existing != nil && existing.UserID != "" {
-		return errors.NewConflictError("User already exists")
+		return user_dto.InviteUserResponseDTO{}, errors.NewConflictError("User with this email already exists")
 	}
 
-	log.Printf("service invite get by email")
+	// 2.2 validate if user with username already exists
+	// 2.2 validate if user with username already exists
+	existing2, err := s.repo.GetUserByUsername(ctx, s.db, input.Username)
+	if err != nil {
+		return user_dto.InviteUserResponseDTO{}, errors.NewDatabaseError(err)
+	}
+	if existing2 != nil {
+		return user_dto.InviteUserResponseDTO{}, errors.NewConflictError("User with this username already exists")
+	}
+
+	log.Printf("valid")
+
 	// 3. init transaction
 	tx, err := s.tx.BeginTxx(ctx, nil)
 	if err != nil {
-		return errors.NewDatabaseError(err)
+		return user_dto.InviteUserResponseDTO{}, errors.NewDatabaseError(err)
 	}
 
 	// 3.1 defer rollback
@@ -226,27 +235,29 @@ func (s *Service) InviteUser(ctx context.Context, input user_dto.InviteUserReque
 
 	// 4. create user
 	if err = s.repo.Create(ctx, tx, userCreated); err != nil {
-		return err
+		return user_dto.InviteUserResponseDTO{}, err
 	}
-	log.Printf("service invite create user")
+	log.Printf("created user")
 
 	// 5. get created user
 	user, err := s.repo.GetByEmail(ctx, tx, input.Email)
 	if err != nil {
-		return err
+		return user_dto.InviteUserResponseDTO{}, err
 	}
+	log.Printf("get by email")
 
 	// 6. get role member
-	roleInfo, err := s.repo.GetInfoRoleByName(ctx, "ROLE_MEMBER")
+	roleInfo, err := s.repo.GetInfoRoleByName(ctx, input.Role)
 	if err != nil {
-		return err
+		return user_dto.InviteUserResponseDTO{}, err
 	}
+	log.Printf("get role info")
 
 	// 7. assign role
 	if err = s.repo.AssignRole(ctx, tx, roleInfo.RoleId, user.UserID, input.OrgId); err != nil {
-		return err
+		return user_dto.InviteUserResponseDTO{}, err
 	}
-	log.Printf("service invite asign role")
+	log.Printf("assign role")
 
 	// 8. insert in organization_user_tbl
 	orgUser := organization_dto.InsertUserOrganizationDTO{
@@ -256,16 +267,26 @@ func (s *Service) InviteUser(ctx context.Context, input user_dto.InviteUserReque
 	}
 
 	if err = s.orgRepo.InsertUserOrganization(ctx, tx, orgUser); err != nil {
-		return err
+		return user_dto.InviteUserResponseDTO{}, err
 	}
-	log.Printf("service invite insert in organization_user_tbl")
+	log.Printf("insert in organization_user_tbl")
+
+	// 9. build response
+	res := user_dto.InviteUserResponseDTO{
+		UserId:   user.UserID,
+		Email:    user.Email,
+		Username: user.Username,
+		Role:     roleInfo.RoleName,
+		OrgId:    input.OrgId,
+	}
+	log.Printf("build response")
 
 	// 9. commit
 	if err = tx.Commit(); err != nil {
-		return errors.NewDatabaseError(err)
+		return user_dto.InviteUserResponseDTO{}, errors.NewDatabaseError(err)
 	}
 
-	return nil
+	return res, nil
 }
 
 func (s *Service) GetUserByEmail(ctx context.Context, email string) (*user_dto.UserResponseDTO, error) {
@@ -296,6 +317,25 @@ func (s *Service) GetUsers(ctx context.Context, page, limit int) ([]user_dto.Use
 	offset := (page - 1) * limit
 
 	return s.repo.GetPaginated(ctx, limit, offset)
+}
+
+func (s *Service) GetUsersByOrganizationPaginated(
+	ctx context.Context,
+	page, limit int,
+	orgId string,
+) ([]user_dto.UsersByOrganizationResponseDTO, int, error) {
+
+	if page < 1 {
+		page = 1
+	}
+
+	if limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	offset := (page - 1) * limit
+
+	return s.repo.GetUsersByOrganizationPaginated(ctx, limit, offset, orgId)
 }
 
 func (s *Service) UpsertUserCustomSettings(
