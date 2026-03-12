@@ -11,6 +11,7 @@ import (
 	organization_repository "core/project/core/internal/organization/repositories"
 	organization_service "core/project/core/internal/organization/services"
 	module_users "core/project/core/internal/users/module"
+	global_ws "core/project/core/internal/ws-global"
 	"fmt"
 	"log"
 	"os"
@@ -62,11 +63,19 @@ func main() {
 		orgRepo, // <- can be orgModule.Repo if we create a module for organizations
 	)
 
+	// chat ws
 	wsHub := chat_ws.NewHub()
 	go wsHub.Run()
 
-	// WebSocket: crear handler pasándole hub + chatServ (para persistir mensajes)
+	// global ws
+	globalHub := global_ws.NewHub()
+	go globalHub.Run()
+
+	// websocket to send chat messages
 	wsHandler := chat_ws.NewWSHandler(wsHub, chatServ)
+
+	// websocket to global state by org
+	globalWsHandler := global_ws.NewWSHandler(globalHub)
 
 	server := api.NewApiServer(
 		":8081",
@@ -75,6 +84,7 @@ func main() {
 		orgHandler,
 		chatHandler,
 		wsHandler,
+		globalWsHandler,
 	)
 
 	if err := server.Run(); err != nil {

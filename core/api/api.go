@@ -5,6 +5,7 @@ import (
 	chat_ws "core/project/core/internal/chat-ws/handlers"
 	organization_hanlders "core/project/core/internal/organization/hanlders"
 	users_handler "core/project/core/internal/users/handlers"
+	global_ws "core/project/core/internal/ws-global"
 	"log"
 	"net/http"
 
@@ -13,11 +14,12 @@ import (
 )
 
 type APIServer struct {
-	addr        string
-	userHandler *users_handler.UserHandler
-	orgHandler  *organization_hanlders.OrgHandler
-	chatHandler *chat_handlers.ChatHandler
-	wsHandler   *chat_ws.WSHandler
+	addr            string
+	userHandler     *users_handler.UserHandler
+	orgHandler      *organization_hanlders.OrgHandler
+	chatHandler     *chat_handlers.ChatHandler
+	wsHandler       *chat_ws.WSHandler
+	globalWsHandler *global_ws.WSHandler
 }
 
 func NewApiServer(
@@ -26,13 +28,15 @@ func NewApiServer(
 	orgHandler *organization_hanlders.OrgHandler,
 	chatHandler *chat_handlers.ChatHandler,
 	wsHandler *chat_ws.WSHandler,
+	globalWsHandler *global_ws.WSHandler,
 ) *APIServer {
 	return &APIServer{
-		addr:        addr,
-		userHandler: userHandler,
-		orgHandler:  orgHandler,
-		chatHandler: chatHandler,
-		wsHandler:   wsHandler,
+		addr:            addr,
+		userHandler:     userHandler,
+		orgHandler:      orgHandler,
+		chatHandler:     chatHandler,
+		wsHandler:       wsHandler,
+		globalWsHandler: globalWsHandler,
 	}
 }
 
@@ -45,6 +49,8 @@ func (s *APIServer) Run() error {
 	chat_handlers.RegisterChatRoutes(api, s.chatHandler)
 
 	chat_ws.RegisterWSRoutes(router, s.wsHandler)
+
+	global_ws.RegisterWSRoutes(router, s.globalWsHandler)
 
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:3000"}, // frontend
