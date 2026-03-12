@@ -25,6 +25,7 @@ type DBTX interface {
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row              // Para RETURNING
 }
 
+// get chats by user with last message and order
 func (r *Repository) GetChatsByUser(
 	ctx context.Context,
 	userId string,
@@ -35,45 +36,46 @@ func (r *Repository) GetChatsByUser(
 
 	query := `
 	SELECT 
-		crt.chat_room_id,
+    crt.chat_room_id,
+    -- get display name group or user name
+    CASE 
+        WHEN crt.room_type = 'GROUP' THEN crt.name
+        ELSE (
+            SELECT u.username
+            FROM room_members_tbl rm
+            JOIN users_tbl u ON u.user_id = rm.user_id
+            WHERE rm.chat_room_id = crt.chat_room_id
+              AND rm.user_id <> $1
+            LIMIT 1
+        )
+    END AS display_name,
 
-		CASE 
-			WHEN crt.room_type = 'group' THEN crt.name
-			ELSE (
-				-- para DM, mostrar el otro usuario
-				SELECT u.username
-				FROM room_members_tbl rm
-				JOIN users_tbl u ON u.user_id = rm.user_id
-				WHERE rm.chat_room_id = crt.chat_room_id
-				  AND rm.user_id <> $1
-				LIMIT 1
-			)
-		END AS display_name,
+    crt.name,
+    crt.room_type,
 
-		crt.room_type,
+    -- get last message
+    m.messages_id,
+    m.content,
+    m.message_type,
+    m.created_at AS last_message_date,
 
-		m.messages_id,
-		m.content,
-		m.message_type,
-		m.created_at AS last_message_date,
-
-		sender.user_id AS sender_id,
-		sender.username AS sender_username
+    -- get info sender
+    sender.user_id AS sender_id,
+    sender.username AS sender_username
 
 	FROM chat_rooms_tbl crt
 
-	-- Traemos rooms donde el usuario es miembro
+	-- filter by user participation
 	LEFT JOIN room_members_tbl rm_self
 		ON rm_self.chat_room_id = crt.chat_room_id
 		AND rm_self.user_id = $1
 
-	-- Para DM, también lo traemos si es uno de los dos miembros
 	LEFT JOIN room_members_tbl rm_direct
 		ON rm_direct.chat_room_id = crt.chat_room_id
-		AND crt.room_type = 'direct'
+		AND crt.room_type = 'DIRECT'
 		AND rm_direct.user_id = $1
 
-	-- Último mensaje por sala
+	-- get last message
 	LEFT JOIN LATERAL (
 		SELECT *
 		FROM messages_tbl m
@@ -85,9 +87,11 @@ func (r *Repository) GetChatsByUser(
 	LEFT JOIN users_tbl sender
 		ON sender.user_id = m.user_id
 
-	WHERE rm_self.user_id IS NOT NULL OR rm_direct.user_id IS NOT NULL
+	-- get only rooms with user that has joined
+	WHERE (rm_self.user_id IS NOT NULL OR rm_direct.user_id IS NOT NULL)
 
-	ORDER BY m.created_at DESC NULLS LAST;
+	-- order 
+	ORDER BY COALESCE(m.created_at, crt.created_at) DESC;
 	`
 
 	var rooms []chat_dto.ChatsRoomsByUser
@@ -99,84 +103,6 @@ func (r *Repository) GetChatsByUser(
 
 	return rooms, nil
 }
-
-// TODO: debemos resolver primero la parte del login con una org que sea igual
-/*func (r *Repository) GetChatsByUserAndOrg(
-	ctx context.Context,
-	userId string,
-	orgId string,
-) ([]chat_dto.ChatsRoomsByUser, error) {
-
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	query := `
-	SELECT
-		crt.chat_room_id,
-
-		CASE
-			WHEN crt.room_type = 'group' THEN crt.name
-			ELSE (
-				-- para DM, mostrar el otro usuario
-				SELECT u.username
-				FROM room_members_tbl rm
-				JOIN users_tbl u ON u.user_id = rm.user_id
-				WHERE rm.chat_room_id = crt.chat_room_id
-				  AND rm.user_id <> $1
-				LIMIT 1
-			)
-		END AS display_name,
-
-		crt.room_type,
-
-		m.messages_id,
-		m.content,
-		m.message_type,
-		m.created_at AS last_message_date,
-
-		sender.user_id AS sender_id,
-		sender.username AS sender_username
-
-	FROM chat_rooms_tbl crt
-
-	-- Traemos rooms donde el usuario es miembro
-	LEFT JOIN room_members_tbl rm_self
-		ON rm_self.chat_room_id = crt.chat_room_id
-		AND rm_self.user_id = $1
-
-	-- Para DM, también lo traemos si es uno de los dos miembros
-	LEFT JOIN room_members_tbl rm_direct
-		ON rm_direct.chat_room_id = crt.chat_room_id
-		AND crt.room_type = 'direct'
-		AND rm_direct.user_id = $1
-
-	-- Último mensaje por sala
-	LEFT JOIN LATERAL (
-		SELECT *
-		FROM messages_tbl m
-		WHERE m.room_id = crt.chat_room_id
-		ORDER BY m.created_at DESC
-		LIMIT 1
-	) m ON TRUE
-
-	LEFT JOIN users_tbl sender
-		ON sender.user_id = m.user_id
-
-	WHERE crt.org_id = $2
-	  AND (rm_self.user_id IS NOT NULL OR rm_direct.user_id IS NOT NULL)
-
-	ORDER BY m.created_at DESC NULLS LAST;
-	`
-
-	var rooms []chat_dto.ChatsRoomsByUser
-
-	err := r.db.SelectContext(ctx, &rooms, query, userId, orgId)
-	if err != nil {
-		return nil, err
-	}
-
-	return rooms, nil
-}*/
 
 func (r *Repository) GetMessagesByRoomRepository(
 	ctx context.Context,
@@ -270,4 +196,120 @@ func (r *Repository) CreateMessageRepository(
 	}
 
 	return &response, nil
+}
+
+// create room
+func (r *Repository) CreateChatRoom(
+	ctx context.Context,
+	tx *sqlx.Tx,
+	room chat_dto.CreateChatRoomDB,
+) (string, error) {
+
+	query := `
+	INSERT INTO chat_rooms_tbl (
+		org_id,
+		name,
+		description,
+		room_type,
+		created_by
+	)
+	VALUES ($1,$2,$3,$4,$5)
+	RETURNING chat_room_id
+	`
+
+	var roomId string
+
+	err := tx.GetContext(
+		ctx,
+		&roomId,
+		query,
+		room.OrgId,
+		room.Name,
+		room.Description,
+		room.RoomType,
+		room.UserIdCreator,
+	)
+
+	if err != nil {
+		return "", err
+	}
+
+	return roomId, nil
+}
+
+// inserte member in room
+func (r *Repository) InsertRoomMember(
+	ctx context.Context,
+	tx *sqlx.Tx,
+	roomId string,
+	userId string,
+	role string,
+) error {
+
+	query := `
+	INSERT INTO room_members_tbl (
+		chat_room_id,
+		user_id,
+		role
+	)
+	VALUES ($1,$2,$3)
+	`
+
+	_, err := tx.ExecContext(
+		ctx,
+		query,
+		roomId,
+		userId,
+		role,
+	)
+
+	return err
+}
+
+// get chat info when has been created
+func (r *Repository) GetChatRoomById(
+	ctx context.Context,
+	roomId string,
+	userId string,
+) (*chat_dto.ChatsRoomsByUser, error) {
+
+	// this query is same as the one in GetChatsRoomsByUser but returns only one room
+	query := `
+    SELECT 
+        crt.chat_room_id,
+        CASE 
+            WHEN crt.room_type = 'GROUP' THEN crt.name
+            ELSE (
+                SELECT u.username
+                FROM room_members_tbl rm
+                JOIN users_tbl u ON u.user_id = rm.user_id
+                WHERE rm.chat_room_id = crt.chat_room_id
+                  AND rm.user_id <> $2
+                LIMIT 1
+            )
+        END AS display_name,
+        crt.name,
+        crt.room_type,
+        m.messages_id,
+        m.content,
+        m.message_type,
+        m.created_at AS last_message_date,
+        sender.user_id AS sender_id,
+        sender.username AS sender_username
+    FROM chat_rooms_tbl crt
+    LEFT JOIN LATERAL (
+        SELECT * FROM messages_tbl m
+        WHERE m.room_id = crt.chat_room_id
+        ORDER BY m.created_at DESC LIMIT 1
+    ) m ON TRUE
+    LEFT JOIN users_tbl sender ON sender.user_id = m.user_id
+    WHERE crt.chat_room_id = $1
+    `
+	var room chat_dto.ChatsRoomsByUser
+	err := r.db.GetContext(ctx, &room, query, roomId, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &room, nil
 }

@@ -51,7 +51,7 @@ func main() {
 
 	//userServ := user_service.NewService(userRepo, orgRepo, conn)
 	orgServ := organization_service.NewService(orgRepo)
-	chatServ := chat_services.NewService(chatRepo)
+	chatServ := chat_services.NewService(chatRepo, conn)
 
 	orgHandler := organization_hanlders.NewOrgHandler(orgServ)
 	//userHandler := user_handler.NewUserHandler(userServ)

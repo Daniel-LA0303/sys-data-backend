@@ -109,6 +109,29 @@ func (h *ChatHandler) CreateMessage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *ChatHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	var req chat_dto.CreateChatRoomRequest
+
+	// 1️⃣ Decode request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, err)
+		return
+	}
+
+	// 2️⃣ Call service
+	res, err := h.service.CreateRoom(ctx, req)
+	if err != nil {
+		log.Printf("CREATE ROOM ERROR: %v\n", err)
+		response.Error(w, err)
+		return
+	}
+
+	// 3️⃣ Success response
+	response.Success(w, res, "Chat room created successfully")
+}
 func RegisterChatRoutes(r *mux.Router, handler *ChatHandler) {
 
 	r.HandleFunc("/chat/chats-by-user",
@@ -120,5 +143,9 @@ func RegisterChatRoutes(r *mux.Router, handler *ChatHandler) {
 
 	r.HandleFunc("/chat/new-message",
 		auth.WithJWTAuth(handler.CreateMessage),
+	).Methods("POST")
+
+	r.HandleFunc("/chat/create-room",
+		auth.WithJWTAuth(handler.CreateRoom),
 	).Methods("POST")
 }

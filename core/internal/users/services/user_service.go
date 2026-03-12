@@ -338,13 +338,21 @@ func (s *Service) GetUsersByOrganizationPaginated(
 	return s.repo.GetUsersByOrganizationPaginated(ctx, limit, offset, orgId)
 }
 
+// get users by organization paginated
+func (s *Service) GetUsersByOrganizationChatPaginated(
+	ctx context.Context,
+	orgId string,
+) ([]user_dto.UsersByOrganizationResponseDTO, error) {
+
+	return s.repo.GetUsersByOrganizationChatPaginated(ctx, orgId)
+}
+
 func (s *Service) UpsertUserCustomSettings(
 	ctx context.Context,
 	input user_dto.UpdateUserCustomSettingsDTO,
 ) error {
 
 	// 1. get id from context and valid is the same with token and sended, is most secure
-
 	userID := auth.GetUserIDFromContext(ctx)
 
 	log.Printf("userid from token conetxt is: %v\n", userID)

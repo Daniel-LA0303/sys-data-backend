@@ -248,6 +248,35 @@ func (r *Repository) GetUsersByOrganizationPaginated(
 	return users, total, nil
 }
 
+// get users by organization paginated
+// TODO this repo isn't paginated yet
+func (r *Repository) GetUsersByOrganizationChatPaginated(
+	ctx context.Context,
+	orgId string,
+) ([]user_dto.UsersByOrganizationResponseDTO, error) {
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var users []user_dto.UsersByOrganizationResponseDTO
+
+	query := `
+		SELECT out2.org_id, out2.user_id, out2.role, ut.username, ut.email
+		FROM organization_user_tbl out2
+		INNER JOIN users_tbl ut ON out2.user_id = ut.user_id
+		WHERE out2.org_id = $1
+		ORDER BY ut.created_at DESC
+	`
+
+	err := r.db.SelectContext(ctx, &users, query, orgId)
+	if err != nil {
+		log.Printf("ERROR in GetUsersByOrganizationChat insert: %v\n", err)
+		return nil, err
+	}
+
+	return users, nil
+}
+
 func (r *Repository) GetAuthByEmail(ctx context.Context, email string) (string, string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()

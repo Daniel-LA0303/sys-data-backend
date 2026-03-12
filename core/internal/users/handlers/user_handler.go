@@ -140,6 +140,30 @@ func (h *UserHandler) GetPaginatedUsersByOrganizationHandler(w http.ResponseWrit
 	response.SuccessPaginated(w, users, page, limit, total)
 }
 
+func (h *UserHandler) GetPaginatedUsersByOrganizationChatHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+
+	orgId := query.Get("orgId")
+
+	users, err := h.service.GetUsersByOrganizationChatPaginated(
+		r.Context(),
+		orgId,
+	)
+
+	if err != nil {
+		http.Error(w, "Error fetching users paginated by org", http.StatusInternalServerError)
+		return
+	}
+
+	if users == nil {
+		users = []user_dto.UsersByOrganizationResponseDTO{}
+	}
+
+	response.Success(w, users, "Users fetched successfully")
+}
+
 func (h *UserHandler) UpdateInfoUserCustomSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	var input user_dto.UpdateUserCustomSettingsDTO
 
@@ -186,6 +210,10 @@ func RegisterUserRoutes(r *mux.Router, handler *UserHandler) {
 
 	r.HandleFunc("/auth/users/users-by-org",
 		auth.WithJWTAuth(handler.GetPaginatedUsersByOrganizationHandler),
+	).Methods("GET")
+
+	r.HandleFunc("/auth/users/users-by-org-chat",
+		auth.WithJWTAuth(handler.GetPaginatedUsersByOrganizationChatHandler),
 	).Methods("GET")
 
 	r.HandleFunc(
