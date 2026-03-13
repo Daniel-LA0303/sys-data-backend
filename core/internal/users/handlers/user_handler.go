@@ -164,7 +164,7 @@ func (h *UserHandler) GetPaginatedUsersByOrganizationChatHandler(w http.Response
 	response.Success(w, users, "Users fetched successfully")
 }
 
-func (h *UserHandler) UpdateInfoUserCustomSettingsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *UserHandler) CreateOrUpdateInfoUserCustomSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	var input user_dto.UpdateUserCustomSettingsDTO
 
 	// 1. check if its a valid request
@@ -173,13 +173,49 @@ func (h *UserHandler) UpdateInfoUserCustomSettingsHandler(w http.ResponseWriter,
 		return
 	}
 
-	err := h.service.UpsertUserCustomSettings(r.Context(), input)
+	err := h.service.CreateOrUpdateUserCustomSettings(r.Context(), input)
 	if err != nil {
 		response.Error(w, err)
 		return
 	}
 
 	response.Success(w, nil, "User settings updated successfully")
+}
+
+func (h *UserHandler) UpdateLanguagePreference(w http.ResponseWriter, r *http.Request) {
+	var input user_dto.UpdateLanguagePreferenceDTO
+
+	// 1. check if its a valid request
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		response.Error(w, errors.NewValidationError("Invalid request body"))
+		return
+	}
+
+	language, err := h.service.UpdateLanguagePreference(r.Context(), input.Language)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+
+	response.Success(w, language, "Update language preference successfully")
+}
+
+func (h *UserHandler) UpdateThemePreference(w http.ResponseWriter, r *http.Request) {
+	var input user_dto.UpdateThemePreferenceDTO
+
+	// 1. check if its a valid request
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		response.Error(w, errors.NewValidationError("Invalid request body"))
+		return
+	}
+
+	theme, err := h.service.UpdateThemePreference(r.Context(), input.Theme)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+
+	response.Success(w, theme, "Update theme preference successfully")
 }
 
 func (h *UserHandler) GetProfileHandler(w http.ResponseWriter, r *http.Request) {
@@ -222,12 +258,22 @@ func RegisterUserRoutes(r *mux.Router, handler *UserHandler) {
 	).Methods("GET")
 
 	r.HandleFunc(
-		"/auth/user/update-user-custom-settings",
-		auth.WithJWTAuth(handler.UpdateInfoUserCustomSettingsHandler),
-	).Methods("PUT")
-
-	r.HandleFunc(
 		"/auth/user/invite-user",
 		auth.WithJWTAuth(handler.IniviteUserHandler),
+	).Methods("POST")
+
+	// update user settings or create
+	r.HandleFunc(
+		"/auth/user/create-or-update-user-custom-settings",
+		auth.WithJWTAuth(handler.CreateOrUpdateInfoUserCustomSettingsHandler),
+	).Methods("PUT")
+	r.HandleFunc(
+		"/user/update-language-preference",
+		auth.WithJWTAuth(handler.UpdateLanguagePreference),
+	).Methods("POST")
+
+	r.HandleFunc(
+		"/user/update-theme-preference",
+		auth.WithJWTAuth(handler.UpdateThemePreference),
 	).Methods("POST")
 }

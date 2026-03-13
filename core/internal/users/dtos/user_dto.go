@@ -46,6 +46,8 @@ type LoginResponseDTO struct {
 	OrgId    string `json:"orgId" db:"org_id"`
 	OrgName  string `json:"orgName" db:"org_name"`
 	RoleName string `json:"roleName" db:"role_name"`
+	Theme    string `json:"theme" db:"theme_preference"`
+	Language string `json:"language" db:"language"`
 }
 
 type CreateUserResponseDTO struct {
@@ -59,15 +61,11 @@ type CreateUserResponseDTO struct {
 }
 
 type UpdateUserCustomSettingsDTO struct {
-	UserId           string `json:"userId" db:"user_id"`
-	FirstName        string `json:"firstName" db:"first_name"`
-	LastName         string `json:"lastName" db:"last_name"`
-	Phone            string `json:"phone" db:"phone"`
-	AvatarUrl        string `json:"avatarUrl" db:"avatar_url"`
-	TimeZone         string `json:"timeZone" db:"time_zone"`
-	Language         string `json:"language" db:"language"`
-	ThemePreference  string `json:"themePreference" db:"theme_preference"`
-	ProfileCompleted bool   `json:"profileCompleted" db:"profile_completed"`
+	UserId    string `json:"userId" db:"user_id" validate:"required"`
+	FirstName string `json:"firstName" db:"first_name" validate:"required"`
+	LastName  string `json:"lastName" db:"last_name" validate:"required"`
+	Phone     string `json:"phone" db:"phone" validate:"required"`
+	TimeZone  string `json:"timeZone" db:"time_zone" validate:"required"`
 }
 
 type RoleSmallRegisterInfo struct {
@@ -81,4 +79,12 @@ type InviteUserRequestDTO struct {
 	Password string `json:"password" validate:"required,min=4"`
 	OrgId    string `json:"orgId" validate:"required"`
 	Role     string `json:"role" validate:"required"`
+}
+
+type UpdateLanguagePreferenceDTO struct {
+	Language string `json:"language" validate:"required"`
+}
+
+type UpdateThemePreferenceDTO struct {
+	Theme string `json:"theme" validate:"required"`
 }

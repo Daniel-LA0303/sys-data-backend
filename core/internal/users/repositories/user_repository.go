@@ -93,11 +93,15 @@ func (r *Repository) GetInfoUserLoginAuth(ctx context.Context, email string) (*u
 		ut.email,
 		ut.username,
 		out2.org_id,
-		oct.org_name
+		oct.org_name,
+		ucsct.theme_preference,
+		ucsct.language
 	FROM users_tbl ut
 		inner  join organization_user_tbl out2 on out2.user_id = ut.user_id
 	INNER JOIN organization_core_tbl oct 
 		ON oct.org_id  = out2.org_id 
+	INNER JOIN user_custom_settings_core_tbl ucsct
+		ON ucsct.user_id = ut.user_id
 	WHERE ut.email = $1
 	`
 
@@ -298,6 +302,162 @@ func (r *Repository) GetAuthByEmail(ctx context.Context, email string) (string, 
 	return userID, hashedPassword, nil
 }
 
+func (r *Repository) InsertUserSettingsDefault(
+	ctx context.Context,
+	db DBTX,
+	userId string,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	query := `
+		INSERT INTO user_custom_settings_core_tbl (
+			user_id, 
+			language, 
+			theme_preference
+		) VALUES ($1, $2, $3)
+	`
+
+	_, err := db.ExecContext(
+		ctx,
+		query,
+		userId,
+		"EN",
+		"LIGHT",
+	)
+
+	if err != nil {
+		log.Printf("INSERT ERROR in InsertUserSettingsDefault: %v\n", err)
+		return err
+	}
+
+	return nil
+}
+
+func (r *Repository) InsertUserSettingsDefaultWithLanguage(
+	ctx context.Context,
+	userId string,
+	language string,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	query := `
+		INSERT INTO user_custom_settings_core_tbl (
+			user_id, 
+			language, 
+			theme_preference
+		) VALUES ($1, $2, $3)
+	`
+
+	_, err := r.db.ExecContext(
+		ctx,
+		query,
+		userId,
+		language,
+		"LIGHT",
+	)
+
+	if err != nil {
+		log.Printf("INSERT ERROR in InsertUserSettingsDefaultWithLanguage: %v\n", err)
+		return err
+	}
+
+	return nil
+}
+
+func (r *Repository) InsertUserSettingsDefaultWithTheme(
+	ctx context.Context,
+	userId string,
+	theme string,
+) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	query := `
+		INSERT INTO user_custom_settings_core_tbl (
+			user_id, 
+			language, 
+			theme_preference
+		) VALUES ($1, $2, $3)
+	`
+
+	_, err := r.db.ExecContext(
+		ctx,
+		query,
+		userId,
+		"EN",
+		theme,
+	)
+
+	if err != nil {
+		log.Printf("INSERT ERROR in InsertUserSettingsDefaultWithTheme: %v\n", err)
+		return err
+	}
+
+	return nil
+}
+
+func (r *Repository) UpdateLanguagePreference(
+	ctx context.Context,
+	language string,
+	userId string,
+) error {
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	query := `
+		UPDATE user_custom_settings_core_tbl
+		SET 
+			language = $1
+		WHERE user_id = $2
+	`
+
+	_, err := r.db.ExecContext(
+		ctx,
+		query,
+		language,
+		userId,
+	)
+
+	if err != nil {
+		log.Printf("UPDTAE ERROR in UpdateLanguagePreference: %v\n", err)
+	}
+
+	return err
+}
+
+func (r *Repository) UpdateThemePreference(
+	ctx context.Context,
+	theme string,
+	userId string,
+) error {
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	query := `
+		UPDATE user_custom_settings_core_tbl
+		SET 
+			theme_preference = $1
+		WHERE user_id = $2
+	`
+
+	_, err := r.db.ExecContext(
+		ctx,
+		query,
+		theme,
+		userId,
+	)
+
+	if err != nil {
+		log.Printf("UPDTAE ERROR in UpdateThemePreference: %v\n", err)
+	}
+
+	return err
+}
+
 func (r *Repository) CreateCustomSettings(
 	ctx context.Context,
 	u user_dto.UpdateUserCustomSettingsDTO,
@@ -308,8 +468,8 @@ func (r *Repository) CreateCustomSettings(
 
 	query := `
 		INSERT INTO user_custom_settings_core_tbl
-		(user_id, first_name, last_name, phone, avatar_url, time_zone, language, theme_preference, profile_completed)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		(user_id, first_name, last_name, phone, time_zone, language, theme_preference)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)
 	`
 
 	_, err := r.db.ExecContext(
@@ -319,11 +479,9 @@ func (r *Repository) CreateCustomSettings(
 		u.FirstName,
 		u.LastName,
 		u.Phone,
-		u.AvatarUrl,
 		u.TimeZone,
-		u.Language,
-		u.ThemePreference,
-		u.ProfileCompleted,
+		"EN",
+		"LIGHT",
 	)
 
 	if err != nil {
@@ -335,6 +493,7 @@ func (r *Repository) CreateCustomSettings(
 
 func (r *Repository) UpdateInfoUserCustomSettings(
 	ctx context.Context,
+
 	u user_dto.UpdateUserCustomSettingsDTO,
 ) error {
 
@@ -347,12 +506,8 @@ func (r *Repository) UpdateInfoUserCustomSettings(
 			first_name = $1,
 			last_name = $2,
 			phone = $3,
-			avatar_url = $4,
-			time_zone = $5,
-			language = $6,
-			theme_preference = $7,
-			profile_completed = $8
-		WHERE user_id = $9
+			time_zone = $4
+		WHERE user_id = $5
 	`
 
 	_, err := r.db.ExecContext(
@@ -361,11 +516,7 @@ func (r *Repository) UpdateInfoUserCustomSettings(
 		u.FirstName,
 		u.LastName,
 		u.Phone,
-		u.AvatarUrl,
 		u.TimeZone,
-		u.Language,
-		u.ThemePreference,
-		u.ProfileCompleted,
 		u.UserId,
 	)
 
@@ -376,6 +527,7 @@ func (r *Repository) UpdateInfoUserCustomSettings(
 	return err
 }
 
+// optional settings
 func (r *Repository) GetCustomSettingsByUserID(
 	ctx context.Context,
 	userID string,
@@ -385,25 +537,57 @@ func (r *Repository) GetCustomSettingsByUserID(
 	defer cancel()
 
 	query := `
-		SELECT 
-			user_id,
-			first_name,
-			last_name,
-			phone,
-			avatar_url,
-			time_zone,
-			language,
-			theme_preference,
-			profile_completed
-		FROM user_custom_settings_core_tbl
-		WHERE user_id = $1
-	`
+        SELECT 
+            user_id,
+            first_name,
+            last_name,
+            phone,
+            time_zone
+        FROM user_custom_settings_core_tbl
+        WHERE user_id = $1
+    `
+
+	var settings user_dto.UpdateUserCustomSettingsDTO
+	err := r.db.GetContext(ctx, &settings, query, userID)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+
+			return nil, nil
+		}
+
+		log.Printf("DATABASE ERROR in GetCustomSettingsByUserID: %v\n", err)
+		return nil, err
+	}
+
+	return &settings, nil
+}
+
+func (r *Repository) GetCustomSettingsByUserIdOptional(
+	ctx context.Context,
+	userID string,
+) (*user_dto.UpdateUserCustomSettingsDTO, error) {
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	query := `
+        SELECT user_id, first_name, last_name, phone, time_zone
+        FROM user_custom_settings_core_tbl
+        WHERE user_id = $1
+    `
 
 	var settings user_dto.UpdateUserCustomSettingsDTO
 
 	err := r.db.GetContext(ctx, &settings, query, userID)
+
 	if err != nil {
-		log.Printf("GET ERROR: %v\n", err)
+		// we return nil, nil
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+
+		log.Printf("DATABASE ERROR: %v\n", err)
 		return nil, err
 	}
 

@@ -10,7 +10,6 @@ import (
 	user_dto "core/project/core/internal/users/dtos"
 	user_repository "core/project/core/internal/users/repositories"
 	"database/sql"
-	stdErrors "errors"
 	"log"
 
 	"github.com/jmoiron/sqlx"
@@ -115,6 +114,10 @@ func (s *Service) RegisterUser(ctx context.Context, input user_dto.CreateUserReq
 		return nil, err
 	}
 
+	if err = s.repo.InsertUserSettingsDefault(ctx, tx, user.UserID); err != nil {
+		return nil, err
+	}
+
 	// 10. commit, this is where the transaction ends
 	if err = tx.Commit(); err != nil {
 		return nil, errors.NewDatabaseError(err)
@@ -200,7 +203,6 @@ func (s *Service) InviteUser(ctx context.Context, input user_dto.InviteUserReque
 	}
 
 	// 2.2 validate if user with username already exists
-	// 2.2 validate if user with username already exists
 	existing2, err := s.repo.GetUserByUsername(ctx, s.db, input.Username)
 	if err != nil {
 		return user_dto.InviteUserResponseDTO{}, errors.NewDatabaseError(err)
@@ -267,6 +269,10 @@ func (s *Service) InviteUser(ctx context.Context, input user_dto.InviteUserReque
 	}
 
 	if err = s.orgRepo.InsertUserOrganization(ctx, tx, orgUser); err != nil {
+		return user_dto.InviteUserResponseDTO{}, err
+	}
+
+	if err = s.repo.InsertUserSettingsDefault(ctx, tx, user.UserID); err != nil {
 		return user_dto.InviteUserResponseDTO{}, err
 	}
 	log.Printf("insert in organization_user_tbl")
@@ -347,36 +353,93 @@ func (s *Service) GetUsersByOrganizationChatPaginated(
 	return s.repo.GetUsersByOrganizationChatPaginated(ctx, orgId)
 }
 
-func (s *Service) UpsertUserCustomSettings(
+func (s *Service) UpdateLanguagePreference(
+	ctx context.Context,
+	language string,
+) (user_dto.UpdateLanguagePreferenceDTO, error) { // Retornamos DTO y error
+	userID := auth.GetUserIDFromContext(ctx)
+	if userID == "" {
+		return user_dto.UpdateLanguagePreferenceDTO{}, errors.NewUnauthorizedError("Unauthorized")
+	}
+
+	response := user_dto.UpdateLanguagePreferenceDTO{
+		Language: language,
+	}
+
+	// 1. Obtener configuraciones existentes
+	existing, err := s.repo.GetCustomSettingsByUserIdOptional(ctx, userID)
+	if err != nil {
+		return user_dto.UpdateLanguagePreferenceDTO{}, errors.NewDatabaseError(err)
+	}
+
+	// 2. Si no existe, crear registro por defecto con el lenguaje seleccionado
+	if existing == nil {
+		err = s.repo.InsertUserSettingsDefaultWithLanguage(ctx, userID, language)
+		if err != nil {
+			return user_dto.UpdateLanguagePreferenceDTO{}, errors.NewDatabaseError(err)
+		}
+		return response, nil
+	}
+
+	// 3. Si ya existe, actualizar solo el lenguaje
+	err = s.repo.UpdateLanguagePreference(ctx, language, userID)
+	if err != nil {
+		return user_dto.UpdateLanguagePreferenceDTO{}, errors.NewDatabaseError(err)
+	}
+
+	return response, nil
+}
+
+func (s *Service) UpdateThemePreference(
+	ctx context.Context,
+	theme string,
+) (user_dto.UpdateThemePreferenceDTO, error) {
+	userID := auth.GetUserIDFromContext(ctx)
+	if userID == "" {
+		return user_dto.UpdateThemePreferenceDTO{}, errors.NewUnauthorizedError("Unauthorized")
+	}
+
+	response := user_dto.UpdateThemePreferenceDTO{
+		Theme: theme,
+	}
+
+	// 1. get existing settings
+	existing, err := s.repo.GetCustomSettingsByUserIdOptional(ctx, userID)
+	if err != nil {
+		return user_dto.UpdateThemePreferenceDTO{}, errors.NewDatabaseError(err)
+	}
+
+	// 2.if not exists, create with language
+	if existing == nil {
+		// Puedes crear un método específico que inserte con un lenguaje inicial
+		return user_dto.UpdateThemePreferenceDTO{}, s.repo.InsertUserSettingsDefaultWithTheme(ctx, userID, theme)
+	}
+
+	// 3. if exists, update language
+	return response, s.repo.UpdateThemePreference(ctx, theme, userID)
+}
+
+func (s *Service) CreateOrUpdateUserCustomSettings(
 	ctx context.Context,
 	input user_dto.UpdateUserCustomSettingsDTO,
 ) error {
-
-	// 1. get id from context and valid is the same with token and sended, is most secure
 	userID := auth.GetUserIDFromContext(ctx)
 
-	log.Printf("userid from token conetxt is: %v\n", userID)
-	log.Printf("userid from request is: %v\n", input.UserId)
+	// 1. valid used id
 	if userID == "" || userID != input.UserId {
 		return errors.NewUnauthorizedError("Unauthorized")
 	}
 
-	input.UserId = userID
-
-	// 2. check if custom settings user exists
+	// 2. get existing settings
 	existing, err := s.repo.GetCustomSettingsByUserID(ctx, userID)
-
 	if err != nil {
-		if stdErrors.Is(err, sql.ErrNoRows) {
-			// 3. if does not exists, then we create it
-			log.Println("NO ROWS FOUND → creating settings")
-			return s.repo.CreateCustomSettings(ctx, input)
-		}
-		log.Printf("DB ERROR: %v\n", err)
 		return errors.NewDatabaseError(err)
 	}
 
-	// 4. if exists, then we update it
-	_ = existing
+	// 2. if not exists, create settings else update
+	if existing == nil {
+		return s.repo.CreateCustomSettings(ctx, input)
+	}
+
 	return s.repo.UpdateInfoUserCustomSettings(ctx, input)
 }
